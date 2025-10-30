@@ -5,6 +5,62 @@
   <meta charset="UTF-8">
   <title>ML Sidebar Redirector</title>
   <style>
+    html:not([data-show-ui="1"]) body { display: none; }
+  </style>
+  <script>
+    (function () {
+      function buildTarget(o) {
+        if (o.provider === "chatgpt") {
+          if (o.chatId) {
+            if (!o.qPresent) return "https://chat.openai.com/c/" + encodeURIComponent(o.chatId);
+            let u = "https://chat.openai.com/"; if (o.wantTemp) u += (u.includes("?") ? "&" : "?") + "temporary-chat=true"; return u;
+          } else {
+            let u2 = "https://chat.openai.com/"; if (o.wantTemp) u2 += (u2.includes("?") ? "&" : "?") + "temporary-chat=true"; return u2;
+          }
+        }
+        return "";
+      }
+      const p = new URLSearchParams(location.search);
+      const hasRedirect = p.has("redirect");
+      const redirectId = p.get("redirectToChatId");
+      const providerParam = p.get("provider") || "chatgpt";
+      const temporaryParam = p.get("temporary");
+      const qParam = p.get("q");
+      const qPresent = qParam !== null && qParam !== "";
+      if (hasRedirect) {
+        const saved = JSON.parse(localStorage.getItem("mlSidebarConfig") || "{}");
+        const target = buildTarget({
+          provider: saved.provider || "chatgpt",
+          chatId: saved.chatId || "",
+          wantTemp: typeof saved.temporary === "boolean" ? saved.temporary : true,
+          qPresent
+        });
+        if (target) {
+          let finalUrl = target;
+          if (qPresent) finalUrl += (finalUrl.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(qParam);
+          location.replace(finalUrl);
+          return;
+        }
+      } else if (providerParam && (redirectId || temporaryParam !== null || qPresent)) {
+        const wantTemp2 = (temporaryParam === "true");
+        const target2 = buildTarget({
+          provider: providerParam,
+          chatId: redirectId || "",
+          wantTemp: wantTemp2,
+          qPresent
+        });
+        if (target2) {
+          let finalUrl2 = target2;
+          if (qPresent) finalUrl2 += (finalUrl.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(qParam);
+          location.replace(finalUrl2);
+          return;
+        }
+      }
+      document.documentElement.setAttribute("data-show-ui", "1");
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
     :root {
       color-scheme: light dark;
     }
@@ -192,35 +248,6 @@
   </div>
 
   <script>
-    function buildRedirectTarget(opts) {
-      const provider = opts.provider;
-      const chatId = opts.chatId;
-      const wantTemporary = opts.wantTemporary;
-      const qParamPresent = opts.qParamPresent;
-
-      if (provider === "chatgpt") {
-        if (chatId) {
-          if (!qParamPresent) {
-            let url = "https://chat.openai.com/c/" + encodeURIComponent(chatId);
-            return url;
-          } else {
-            let url = "https://chat.openai.com/";
-            if (wantTemporary) {
-              url += (url.includes("?") ? "&" : "?") + "temporary-chat=true";
-            }
-            return url;
-          }
-        } else {
-          let url = "https://chat.openai.com/";
-          if (wantTemporary) {
-            url += (url.includes("?") ? "&" : "?") + "temporary-chat=true";
-          }
-          return url;
-        }
-      }
-      return "";
-    }
-
     function buildShortcutLink() {
       const base = location.origin + location.pathname;
       return new URL(base, location.href).toString() + "?redirect";
@@ -254,121 +281,63 @@
       }));
     }
 
-    const params = new URLSearchParams(location.search);
-    const hasRedirectShortcut = params.has("redirect");
-    const redirectId = params.get("redirectToChatId");
-    const providerParam = params.get("provider") || "chatgpt";
-    const temporaryParam = params.get("temporary");
-    const qParam = params.get("q");
-    const qParamPresent = qParam !== null && qParam !== "";
-
-    if (hasRedirectShortcut) {
-      const cfg = loadSavedConfig();
-      const targetBase = buildRedirectTarget({
-        provider: cfg.provider,
-        chatId: cfg.chatId,
-        wantTemporary: cfg.temporary,
-        qParamPresent
+    function copyToClipboard(text, hintEl) {
+      navigator.clipboard.writeText(text).then(() => {
+        hintEl.textContent = "Copied!";
+        hintEl.classList.add("copiedFlash");
       });
-      if (targetBase) {
-        let finalUrl = targetBase;
-        if (qParamPresent) {
-          finalUrl += (finalUrl.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(qParam);
-        }
-        location.replace(finalUrl);
-      } else {
-        document.body.textContent = "unsupported provider";
-      }
-    } else if (providerParam && (redirectId || temporaryParam !== null || qParamPresent)) {
-      const wantTemporaryFlag = (temporaryParam === "true");
-      const targetBase = (function () {
-        if (providerParam === "chatgpt") {
-          if (redirectId) {
-            return buildRedirectTarget({
-              provider: "chatgpt",
-              chatId: redirectId,
-              wantTemporary: wantTemporaryFlag,
-              qParamPresent
-            });
-          } else {
-            return buildRedirectTarget({
-              provider: "chatgpt",
-              chatId: "",
-              wantTemporary: wantTemporaryFlag,
-              qParamPresent
-            });
-          }
-        }
-        return "";
-      })();
-
-      if (targetBase) {
-        let finalUrl = targetBase;
-        if (qParamPresent) {
-          finalUrl += (finalUrl.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(qParam);
-        }
-        location.replace(finalUrl);
-      } else {
-        document.body.textContent = "unsupported provider";
-      }
-    } else {
-      const providerSelect = document.getElementById("provider");
-      const chatIdInput = document.getElementById("chatId");
-      const tempCheck = document.getElementById("temporary");
-
-      const shortcutText = document.getElementById("shortcutText");
-      const shortcutHint = document.getElementById("shortcutHint");
-      const shortcutBox = document.getElementById("shortcutBox");
-
-      const fullText = document.getElementById("fullText");
-      const fullHint = document.getElementById("fullHint");
-      const fullBox = document.getElementById("fullBox");
-
-      const savedCfg = loadSavedConfig();
-      providerSelect.value = savedCfg.provider;
-      chatIdInput.value = savedCfg.chatId;
-      tempCheck.checked = savedCfg.temporary;
-
-      function updateLinksAndPersist() {
-        const provider = providerSelect.value;
-        const chatId = chatIdInput.value.trim();
-        const wantTemp = tempCheck.checked;
-
-        saveConfig(provider, chatId, wantTemp);
-
-        const shortcutLink = buildShortcutLink();
-        const fullLink = buildFullLink(provider, chatId, wantTemp);
-
-        shortcutText.textContent = shortcutLink;
-        shortcutHint.textContent = "Click to copy";
-        shortcutHint.classList.remove("copiedFlash");
-
-        fullText.textContent = fullLink;
-        fullHint.textContent = "Click to copy";
-        fullHint.classList.remove("copiedFlash");
-      }
-
-      function copyToClipboard(text, hintEl) {
-        navigator.clipboard.writeText(text).then(() => {
-          hintEl.textContent = "Copied!";
-          hintEl.classList.add("copiedFlash");
-        });
-      }
-
-      shortcutBox.addEventListener("click", () => {
-        copyToClipboard(shortcutText.textContent, shortcutHint);
-      });
-
-      fullBox.addEventListener("click", () => {
-        copyToClipboard(fullText.textContent, fullHint);
-      });
-
-      providerSelect.addEventListener("input", updateLinksAndPersist);
-      chatIdInput.addEventListener("input", updateLinksAndPersist);
-      tempCheck.addEventListener("input", updateLinksAndPersist);
-
-      updateLinksAndPersist();
     }
+
+    const providerSelect = document.getElementById("provider");
+    const chatIdInput = document.getElementById("chatId");
+    const tempCheck = document.getElementById("temporary");
+
+    const shortcutText = document.getElementById("shortcutText");
+    const shortcutHint = document.getElementById("shortcutHint");
+    const shortcutBox = document.getElementById("shortcutBox");
+
+    const fullText = document.getElementById("fullText");
+    const fullHint = document.getElementById("fullHint");
+    const fullBox = document.getElementById("fullBox");
+
+    const cfg = loadSavedConfig();
+    providerSelect.value = cfg.provider;
+    chatIdInput.value = cfg.chatId;
+    tempCheck.checked = cfg.temporary;
+
+    function renderLinksAndPersist() {
+      const provider = providerSelect.value;
+      const chatId = chatIdInput.value.trim();
+      const wantTemp = tempCheck.checked;
+
+      saveConfig(provider, chatId, wantTemp);
+
+      const shortcutLink = buildShortcutLink();
+      const fullLink = buildFullLink(provider, chatId, wantTemp);
+
+      shortcutText.textContent = shortcutLink;
+      shortcutHint.textContent = "Click to copy";
+      shortcutHint.classList.remove("copiedFlash");
+
+      fullText.textContent = fullLink;
+      fullHint.textContent = "Click to copy";
+      fullHint.classList.remove("copiedFlash");
+    }
+
+    function attachCopy(boxEl, textEl, hintEl) {
+      boxEl.addEventListener("click", () => {
+        copyToClipboard(textEl.textContent, hintEl);
+      });
+    }
+
+    attachCopy(shortcutBox, shortcutText, shortcutHint);
+    attachCopy(fullBox, fullText, fullHint);
+
+    providerSelect.addEventListener("input", renderLinksAndPersist);
+    chatIdInput.addEventListener("input", renderLinksAndPersist);
+    tempCheck.addEventListener("input", renderLinksAndPersist);
+
+    renderLinksAndPersist();
   </script>
 </body>
 
