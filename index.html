@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>ML Sidebar Redirector</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: canvas;
+      color: canvastext;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 4rem 1rem;
+    }
+
+    .card {
+      background: canvas;
+      color: canvastext;
+      box-shadow: 0 20px 40px rgb(0 0 0 / 0.15);
+      border-radius: 0.8rem;
+      border: 1px solid rgb(0 0 0 / 0.08);
+      max-width: 520px;
+      width: 100%;
+      padding: 1.5rem 1.5rem 2rem;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      line-height: 1.3;
+      text-align: center;
+      margin: 0 0 1.5rem;
+    }
+
+    .field {
+      margin-bottom: 1rem;
+    }
+
+    .labelRow {
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 0.4rem;
+    }
+
+    .control {
+      width: 100%;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      padding: 0.6rem 0.7rem;
+      border-radius: 0.6rem;
+      border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+      background: inherit;
+      color: inherit;
+      box-sizing: border-box;
+      appearance: none;
+    }
+
+    select.control {
+      background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position:
+        calc(100% - 18px) calc(50% - 3px),
+        calc(100% - 13px) calc(50% - 3px);
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+    }
+
+    .rowInline {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      margin: 1rem 0 1.5rem;
+    }
+
+    .rowInline input[type="checkbox"] {
+      margin-top: 0.2rem;
+      min-width: 1rem;
+      min-height: 1rem;
+    }
+
+    .linkBlock {
+      margin-top: 1.5rem;
+    }
+
+    .linkHeader {
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.4;
+      margin-bottom: 0.25rem;
+    }
+
+    .linkExplain {
+      font-size: 0.8rem;
+      line-height: 1.4;
+      color: color-mix(in srgb, currentColor 60%, transparent);
+      margin-bottom: 0.5rem;
+    }
+
+    .linkBox {
+      cursor: pointer;
+      user-select: none;
+      word-break: break-all;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      border-radius: 0.5rem;
+      border: 1px solid rgb(0 0 0 / 0.1);
+      background: color-mix(in srgb, currentColor 5%, transparent);
+      padding: 0.6rem 0.7rem;
+      min-height: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+    }
+
+    .linkText {
+      flex: 1;
+      word-break: break-all;
+    }
+
+    .copyHint {
+      flex-shrink: 0;
+      font-size: 0.7rem;
+      line-height: 1.2;
+      color: color-mix(in srgb, currentColor 60%, transparent);
+      white-space: nowrap;
+    }
+
+    .copiedFlash {
+      color: color-mix(in srgb, currentColor 20%, transparent);
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>ML Sidebar Redirector</h1>
+
+    <div id="settings">
+      <div class="field">
+        <div class="labelRow">Chat provider:</div>
+        <select id="provider" class="control">
+          <option value="chatgpt">ChatGPT</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="labelRow">Persistent chat ID:</div>
+        <input id="chatId" type="text" class="control" placeholder="6ad3c278-5298-459a-9ea7-61a5a488a8db" />
+      </div>
+
+      <div class="rowInline">
+        <input type="checkbox" id="temporary" checked />
+        <div>Append <code>temporary-chat=true</code> for ephemeral chats</div>
+      </div>
+
+      <div class="linkBlock">
+        <div class="linkHeader">Shortcut link</div>
+        <div class="linkExplain">
+          Set this once in <code>about:config → browser.ml.chat.provider</code> and never touch it again.
+          The page will use your saved settings.
+        </div>
+        <div class="linkBox" id="shortcutBox">
+          <div class="linkText" id="shortcutText"></div>
+          <div class="copyHint" id="shortcutHint">Click to copy</div>
+        </div>
+      </div>
+
+      <div class="linkBlock">
+        <div class="linkHeader">Full link</div>
+        <div class="linkExplain">
+          This link encodes provider, chat ID, and the temporary flag directly in the URL.
+          You can paste it into <code>browser.ml.chat.provider</code> even on another machine.
+        </div>
+        <div class="linkBox" id="fullBox">
+          <div class="linkText" id="fullText"></div>
+          <div class="copyHint" id="fullHint">Click to copy</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function buildRedirectTarget(opts) {
+      const provider = opts.provider;
+      const chatId = opts.chatId;
+      const wantTemporary = opts.wantTemporary;
+      const qParamPresent = opts.qParamPresent;
+
+      if (provider === "chatgpt") {
+        if (chatId) {
+          if (!qParamPresent) {
+            let url = "https://chat.openai.com/c/" + encodeURIComponent(chatId);
+            return url;
+          } else {
+            let url = "https://chat.openai.com/";
+            if (wantTemporary) {
+              url += (url.includes("?") ? "&" : "?") + "temporary-chat=true";
+            }
+            return url;
+          }
+        } else {
+          let url = "https://chat.openai.com/";
+          if (wantTemporary) {
+            url += (url.includes("?") ? "&" : "?") + "temporary-chat=true";
+          }
+          return url;
+        }
+      }
+      return "";
+    }
+
+    function buildShortcutLink() {
+      const base = location.origin + location.pathname;
+      return new URL(base, location.href).toString() + "?redirect";
+    }
+
+    function buildFullLink(provider, chatId, wantTemporary) {
+      const base = location.origin + location.pathname;
+      const u = new URL(base, location.href);
+      u.searchParams.set("provider", provider);
+      if (chatId) {
+        u.searchParams.set("redirectToChatId", chatId);
+      }
+      u.searchParams.set("temporary", String(wantTemporary));
+      return u.toString();
+    }
+
+    function loadSavedConfig() {
+      const saved = JSON.parse(localStorage.getItem("mlSidebarConfig") || "{}");
+      return {
+        provider: saved.provider || "chatgpt",
+        chatId: saved.chatId || "",
+        temporary: typeof saved.temporary === "boolean" ? saved.temporary : true
+      };
+    }
+
+    function saveConfig(provider, chatId, temporary) {
+      localStorage.setItem("mlSidebarConfig", JSON.stringify({
+        provider,
+        chatId,
+        temporary
+      }));
+    }
+
+    const params = new URLSearchParams(location.search);
+    const hasRedirectShortcut = params.has("redirect");
+    const redirectId = params.get("redirectToChatId");
+    const providerParam = params.get("provider") || "chatgpt";
+    const temporaryParam = params.get("temporary");
+    const qParam = params.get("q");
+    const qParamPresent = qParam !== null && qParam !== "";
+
+    if (hasRedirectShortcut) {
+      const cfg = loadSavedConfig();
+      const targetBase = buildRedirectTarget({
+        provider: cfg.provider,
+        chatId: cfg.chatId,
+        wantTemporary: cfg.temporary,
+        qParamPresent
+      });
+      if (targetBase) {
+        let finalUrl = targetBase;
+        if (qParamPresent) {
+          finalUrl += (finalUrl.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(qParam);
+        }
+        location.replace(finalUrl);
+      } else {
+        document.body.textContent = "unsupported provider";
+      }
+    } else if (providerParam && (redirectId || temporaryParam !== null || qParamPresent)) {
+      const wantTemporaryFlag = (temporaryParam === "true");
+      const targetBase = (function () {
+        if (providerParam === "chatgpt") {
+          if (redirectId) {
+            return buildRedirectTarget({
+              provider: "chatgpt",
+              chatId: redirectId,
+              wantTemporary: wantTemporaryFlag,
+              qParamPresent
+            });
+          } else {
+            return buildRedirectTarget({
+              provider: "chatgpt",
+              chatId: "",
+              wantTemporary: wantTemporaryFlag,
+              qParamPresent
+            });
+          }
+        }
+        return "";
+      })();
+
+      if (targetBase) {
+        let finalUrl = targetBase;
+        if (qParamPresent) {
+          finalUrl += (finalUrl.includes("?") ? "&" : "?") + "q=" + encodeURIComponent(qParam);
+        }
+        location.replace(finalUrl);
+      } else {
+        document.body.textContent = "unsupported provider";
+      }
+    } else {
+      const providerSelect = document.getElementById("provider");
+      const chatIdInput = document.getElementById("chatId");
+      const tempCheck = document.getElementById("temporary");
+
+      const shortcutText = document.getElementById("shortcutText");
+      const shortcutHint = document.getElementById("shortcutHint");
+      const shortcutBox = document.getElementById("shortcutBox");
+
+      const fullText = document.getElementById("fullText");
+      const fullHint = document.getElementById("fullHint");
+      const fullBox = document.getElementById("fullBox");
+
+      const savedCfg = loadSavedConfig();
+      providerSelect.value = savedCfg.provider;
+      chatIdInput.value = savedCfg.chatId;
+      tempCheck.checked = savedCfg.temporary;
+
+      function updateLinksAndPersist() {
+        const provider = providerSelect.value;
+        const chatId = chatIdInput.value.trim();
+        const wantTemp = tempCheck.checked;
+
+        saveConfig(provider, chatId, wantTemp);
+
+        const shortcutLink = buildShortcutLink();
+        const fullLink = buildFullLink(provider, chatId, wantTemp);
+
+        shortcutText.textContent = shortcutLink;
+        shortcutHint.textContent = "Click to copy";
+        shortcutHint.classList.remove("copiedFlash");
+
+        fullText.textContent = fullLink;
+        fullHint.textContent = "Click to copy";
+        fullHint.classList.remove("copiedFlash");
+      }
+
+      function copyToClipboard(text, hintEl) {
+        navigator.clipboard.writeText(text).then(() => {
+          hintEl.textContent = "Copied!";
+          hintEl.classList.add("copiedFlash");
+        });
+      }
+
+      shortcutBox.addEventListener("click", () => {
+        copyToClipboard(shortcutText.textContent, shortcutHint);
+      });
+
+      fullBox.addEventListener("click", () => {
+        copyToClipboard(fullText.textContent, fullHint);
+      });
+
+      providerSelect.addEventListener("input", updateLinksAndPersist);
+      chatIdInput.addEventListener("input", updateLinksAndPersist);
+      tempCheck.addEventListener("input", updateLinksAndPersist);
+
+      updateLinksAndPersist();
+    }
+  </script>
+</body>
+
+</html>
